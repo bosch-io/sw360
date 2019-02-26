@@ -10,11 +10,11 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
-package org.eclipse.sw360.datahandler.resourcelists;
+package org.eclipse.sw360.rest.resourceserver.core.resourcelist;
 
-public class PaginationParameterException extends Exception {
+public class ResourceClassNotFoundException extends Exception {
 
-    public PaginationParameterException(String message) {
+    public ResourceClassNotFoundException(String message) {
         super(message);
     }
 

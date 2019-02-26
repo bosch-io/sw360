@@ -17,10 +17,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.apache.log4j.Logger;
 import org.apache.thrift.TException;
-import org.eclipse.sw360.datahandler.common.SW360Constants;
-import org.eclipse.sw360.datahandler.resourcelists.PaginationParameterException;
-import org.eclipse.sw360.datahandler.resourcelists.PaginationResult;
-import org.eclipse.sw360.datahandler.resourcelists.ResourceClassNotFoundException;
+import org.eclipse.sw360.rest.resourceserver.core.*;
 import org.eclipse.sw360.datahandler.thrift.RequestStatus;
 import org.eclipse.sw360.datahandler.thrift.attachments.Attachment;
 import org.eclipse.sw360.datahandler.thrift.components.Component;
@@ -28,24 +25,18 @@ import org.eclipse.sw360.datahandler.thrift.components.Release;
 import org.eclipse.sw360.datahandler.thrift.users.User;
 import org.eclipse.sw360.datahandler.thrift.vendors.Vendor;
 import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentService;
-import org.eclipse.sw360.rest.resourceserver.core.MultiStatus;
-import org.eclipse.sw360.rest.resourceserver.core.HalResource;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
 import org.eclipse.sw360.rest.resourceserver.release.Sw360ReleaseService;
 import org.eclipse.sw360.rest.resourceserver.vendor.Sw360VendorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.rest.webmvc.BasePathAwareController;
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
-import org.springframework.hateoas.PagedResources;
 import org.springframework.hateoas.Resource;
-import org.springframework.hateoas.ResourceProcessor;
 import org.springframework.hateoas.Resources;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -60,12 +51,13 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 
 @BasePathAwareController
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class ComponentController implements ResourceProcessor<RepositoryLinksResource> {
+public class ComponentController extends PagingEnabledController<Component, RepositoryLinksResource> {
 
     public static final String COMPONENTS_URL = "/components";
     private static final Logger log = Logger.getLogger(ComponentController.class);
@@ -83,41 +75,39 @@ public class ComponentController implements ResourceProcessor<RepositoryLinksRes
     private final Sw360AttachmentService attachmentService;
 
     @NonNull
-    private final RestControllerHelper<Component> restControllerHelper;
+    private final RestControllerHelper restControllerHelper;
 
     @RequestMapping(value = COMPONENTS_URL, method = RequestMethod.GET)
-    public ResponseEntity<Resources> getComponents(Pageable pageable,
-                                                                        @RequestParam(value = "name", required = false) String name,
-                                                                        @RequestParam(value = "type", required = false) String componentType,
-                                                                        @RequestParam(value = "fields", required = false) List<String> fields,
-                                                                        HttpServletRequest request) throws TException, URISyntaxException, PaginationParameterException, ResourceClassNotFoundException {
+    public ResponseEntity<Resources<Resource<Component>>> getComponents(
+            Pageable pageable,
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "type", required = false) String componentType,
+            @RequestParam(value = "fields", required = false) List<String> fields,
+            HttpServletRequest request)
+            throws TException {
+        List<Component> components = getComponentsInternal(name, componentType, fields);
+        return mkResponse(components, requestContainsPaging(request) ? pageable : null);
+    }
 
+    private List<Component> getComponentsInternal(String name) throws TException {
         User sw360User = restControllerHelper.getSw360UserFromAuthentication();
-
-        List<Component> allComponents = new ArrayList<>();
         if (name != null && !name.isEmpty()) {
-            allComponents.addAll(componentService.searchComponentByName(name));
+            return componentService.searchComponentByName(name);
         } else {
-            allComponents.addAll(componentService.getComponentsForUser(sw360User));
+            return componentService.getComponentsForUser(sw360User);
         }
+    }
 
-        PaginationResult<Component> paginationResult = restControllerHelper.createPaginationResult(request, pageable, allComponents, SW360Constants.TYPE_COMPONENT);
-
-        List<Resource<Component>> componentResources = new ArrayList<>();
-        paginationResult.getResources().stream()
+    private List<Component> getComponentsInternal(String name, String componentType) throws TException {
+        return getComponentsInternal(name).stream()
                 .filter(component -> componentType == null || componentType.equals(component.componentType.name()))
-                .forEach(c -> {
-                    Component embeddedComponent = restControllerHelper.convertToEmbeddedComponent(c, fields);
-                    componentResources.add(new Resource<>(embeddedComponent));
-                });
+                .collect(Collectors.toList());
+    }
 
-        Resources resources;
-        if (componentResources.size() == 0) {
-            resources = restControllerHelper.emptyPageResource(Component.class, paginationResult);
-        } else {
-            resources = restControllerHelper.generatePagesResource(paginationResult, componentResources);
-        }
-        return new ResponseEntity<>(resources, HttpStatus.OK);
+    private List<Component> getComponentsInternal(String name, String componentType, List<String> fields) throws TException {
+        return getComponentsInternal(name, componentType).stream()
+                .map(c -> restControllerHelper.convertToEmbeddedComponent(c, fields))
+                .collect(Collectors.toList());
     }
 
     @RequestMapping(value = COMPONENTS_URL + "/{id}", method = RequestMethod.GET)

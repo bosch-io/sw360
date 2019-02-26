@@ -20,6 +20,7 @@ import org.eclipse.sw360.rest.resourceserver.TestHelper;
 import org.eclipse.sw360.rest.resourceserver.component.Sw360ComponentService;
 import org.eclipse.sw360.rest.resourceserver.user.Sw360UserService;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,18 +58,27 @@ public class ComponentTest extends TestIntegrationBase {
     private Sw360ComponentService componentServiceMock;
 
     private Component component;
+    private List<Component> componentList;
     private final String componentId = "123456789";
+
+    private Component mkComponent(String str) {
+        component = new Component();
+        component.setName("Component name " + str);
+        component.setHomepage("http://example-component.com");
+        component.setOwnerGroup("ownerGroup1");
+        component.setDescription("Component description for " + str);
+        component.setId(componentId);
+        return component;
+    }
 
     @Before
     public void before() throws TException {
-        List<Component> componentList = new ArrayList<>();
-        component = new Component();
-        component.setName("Component name");
-        component.setHomepage("http://example-component.com");
-        component.setOwnerGroup("ownerGroup1");
-        component.setDescription("Component description");
-        component.setId(componentId);
+        componentList = new ArrayList<>();
+        component = mkComponent("1");
         componentList.add(component);
+        componentList.add(mkComponent("2"));
+        componentList.add(mkComponent("3"));
+        componentList.add(mkComponent("4"));
 
         given(this.componentServiceMock.getComponentsForUser(anyObject())).willReturn(componentList);
 
@@ -90,7 +100,26 @@ public class ComponentTest extends TestIntegrationBase {
                         String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        TestHelper.checkResponse(response.getBody(), "components", 1);
+        TestHelper.checkResponse(response.getBody(), "components", componentList.size());
+        TestHelper.checkResponseCuries(response.getBody());
+        TestHelper.checkNotPagedResponse(response.getBody());
+    }
+
+    @Test
+    public void should_get_all_components_with_paging() throws IOException {
+        int page = 0;
+        int page_entries = 7;
+        HttpHeaders headers = getHeaders(port);
+        ResponseEntity<String> response =
+                new TestRestTemplate().exchange("http://localhost:" + port + "/api/components?page=" + page + "&page_entries=" + page_entries,
+                        HttpMethod.GET,
+                        new HttpEntity<>(null, headers),
+                        String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        TestHelper.checkResponse(response.getBody(), "components", componentList.size());
+        TestHelper.checkResponseCuries(response.getBody());
+        TestHelper.checkPagedResponse(response.getBody(), page_entries, page, 1);
     }
 
     @Test
@@ -105,6 +134,26 @@ public class ComponentTest extends TestIntegrationBase {
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
         TestHelper.checkResponse(response.getBody(), "components", 0);
+        TestHelper.checkResponseCuries(response.getBody());
+        TestHelper.checkNotPagedResponse(response.getBody());
+    }
+
+    @Test
+    public void should_get_all_components_empty_list_with_paging() throws IOException, TException {
+        int page = 0;
+        int page_entries = 7;
+        given(this.componentServiceMock.getComponentsForUser(anyObject())).willReturn(new ArrayList<>());
+        HttpHeaders headers = getHeaders(port);
+        ResponseEntity<String> response =
+                new TestRestTemplate().exchange("http://localhost:" + port + "/api/components?page=" + page + "&page_entries=" + page_entries,
+                        HttpMethod.GET,
+                        new HttpEntity<>(null, headers),
+                        String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+
+        TestHelper.checkResponse(response.getBody(), "components", 0);
+        TestHelper.checkResponseCuries(response.getBody());
+        TestHelper.checkPagedResponse(response.getBody(), page_entries, page, 0);
     }
 
     @Test
@@ -130,7 +179,8 @@ public class ComponentTest extends TestIntegrationBase {
                         String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
 
-        TestHelper.checkResponse(response.getBody(), "components", 1, Collections.singletonList(extraField));
+        TestHelper.checkResponse(response.getBody(), "components", componentList.size(), Collections.singletonList(extraField));
+        TestHelper.checkResponseCuries(response.getBody());
     }
 
     @Test

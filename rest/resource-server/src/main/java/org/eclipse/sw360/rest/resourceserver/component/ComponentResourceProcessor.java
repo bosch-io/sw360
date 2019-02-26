@@ -14,6 +14,7 @@ package org.eclipse.sw360.rest.resourceserver.component;
 import lombok.RequiredArgsConstructor;
 import org.eclipse.sw360.datahandler.thrift.components.Component;
 import org.springframework.hateoas.Link;
+import org.springframework.hateoas.PagedResources;
 import org.springframework.hateoas.Resource;
 import org.springframework.hateoas.ResourceProcessor;
 
