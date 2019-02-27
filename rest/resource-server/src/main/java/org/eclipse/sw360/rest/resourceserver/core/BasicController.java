@@ -11,6 +11,7 @@
  */
 package org.eclipse.sw360.rest.resourceserver.core;
 
+import org.springframework.data.rest.webmvc.RepositoryLinksResource;
 import org.springframework.hateoas.Resource;
 import org.springframework.hateoas.ResourceProcessor;
 import org.springframework.hateoas.ResourceSupport;
@@ -21,7 +22,7 @@ import org.springframework.http.ResponseEntity;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public abstract class BasicController<T, S extends ResourceSupport> implements ResourceProcessor<S> {
+public abstract class BasicController<T> implements ResourceProcessor<RepositoryLinksResource> {
     protected ResponseEntity<Resources<Resource<T>>> mkResponse(List<T> objects) {
         Resources<Resource<T>> resources = new Resources<>(objects.stream()
                 .map(r -> new Resource<>(r))

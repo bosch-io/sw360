@@ -34,6 +34,7 @@ import org.eclipse.sw360.datahandler.thrift.projects.ProjectRelationship;
 import org.eclipse.sw360.datahandler.thrift.users.User;
 import org.eclipse.sw360.datahandler.thrift.vulnerabilities.VulnerabilityDTO;
 import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentService;
+import org.eclipse.sw360.rest.resourceserver.core.BasicController;
 import org.eclipse.sw360.rest.resourceserver.core.HalResource;
 import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
 import org.eclipse.sw360.rest.resourceserver.license.Sw360LicenseService;
@@ -62,12 +63,13 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 
 @BasePathAwareController
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class ProjectController implements ResourceProcessor<RepositoryLinksResource> {
+public class ProjectController extends BasicController<Project> {
     public static final String PROJECTS_URL = "/projects";
     private static final Logger log = Logger.getLogger(ProjectController.class);
 
@@ -96,24 +98,23 @@ public class ProjectController implements ResourceProcessor<RepositoryLinksResou
     public ResponseEntity<Resources<Resource<Project>>> getProjectsForUser(
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "type", required = false) String projectType) throws TException {
+        List<Project> projects = getProjectsForUserInternal(name, projectType);
+        return mkResponse(projects);
+    }
+
+    private List<Project> getProjectsForUserInternal(String name) throws TException {
         User sw360User = restControllerHelper.getSw360UserFromAuthentication();
-        List<Project> sw360Projects = new ArrayList<>();
         if (name != null && !name.isEmpty()) {
-            sw360Projects.addAll(projectService.searchProjectByName(name, sw360User));
+            return projectService.searchProjectByName(name, sw360User);
         } else {
-            sw360Projects.addAll(projectService.getProjectsForUser(sw360User));
+            return projectService.getProjectsForUser(sw360User);
         }
+    }
 
-        List<Resource<Project>> projectResources = new ArrayList<>();
-        sw360Projects.stream()
+    private List<Project> getProjectsForUserInternal(String name, String projectType) throws TException {
+        return getProjectsForUserInternal(name).stream()
                 .filter(project -> projectType == null || projectType.equals(project.projectType.name()))
-                .forEach(p -> {
-                    Project embeddedProject = restControllerHelper.convertToEmbeddedProject(p);
-                    projectResources.add(new Resource<>(embeddedProject));
-                });
-
-        Resources<Resource<Project>> resources = new Resources<>(projectResources);
-        return new ResponseEntity<>(resources, HttpStatus.OK);
+                .collect(Collectors.toList());
     }
 
     @RequestMapping(value = PROJECTS_URL + "/{id}", method = RequestMethod.GET)

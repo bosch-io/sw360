@@ -57,7 +57,7 @@ import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 
 @BasePathAwareController
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class ComponentController extends PagingEnabledController<Component, RepositoryLinksResource> {
+public class ComponentController extends PagingEnabledController<Component> {
 
     public static final String COMPONENTS_URL = "/components";
     private static final Logger log = Logger.getLogger(ComponentController.class);

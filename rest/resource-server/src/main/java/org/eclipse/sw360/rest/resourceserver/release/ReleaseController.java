@@ -14,6 +14,7 @@ package org.eclipse.sw360.rest.resourceserver.release;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.log4j.Logger;
 import org.apache.thrift.TException;
 import org.eclipse.sw360.datahandler.thrift.RequestStatus;
@@ -24,6 +25,7 @@ import org.eclipse.sw360.datahandler.thrift.vendors.Vendor;
 import org.eclipse.sw360.rest.resourceserver.attachment.AttachmentInfo;
 import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentService;
 import org.eclipse.sw360.rest.resourceserver.component.ComponentController;
+import org.eclipse.sw360.rest.resourceserver.core.BasicController;
 import org.eclipse.sw360.rest.resourceserver.core.HalResource;
 import org.eclipse.sw360.rest.resourceserver.core.MultiStatus;
 import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
@@ -47,18 +49,16 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 
 @BasePathAwareController
+@Slf4j
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class ReleaseController implements ResourceProcessor<RepositoryLinksResource> {
+public class ReleaseController extends BasicController<Release> {
     public static final String RELEASES_URL = "/releases";
-    private static final Logger log = Logger.getLogger(ReleaseController.class);
 
     @NonNull
     private Sw360ReleaseService releaseService;
@@ -67,31 +67,30 @@ public class ReleaseController implements ResourceProcessor<RepositoryLinksResou
     private Sw360AttachmentService attachmentService;
 
     @NonNull
-    private RestControllerHelper restControllerHelper;
+    private final RestControllerHelper restControllerHelper;
 
     @RequestMapping(value = RELEASES_URL, method = RequestMethod.GET)
-    public ResponseEntity<Resources<Resource>> getReleasesForUser(
+    public ResponseEntity<Resources<Resource<Release>>> getReleasesForUser(
             @RequestParam(value = "sha1", required = false) String sha1,
-            @RequestParam(value = "fields", required = false) List<String> fields) throws TException {
+            @RequestParam(value = "fields", required = false) List<String> fields)
+            throws TException {
+        List<Release> releases = getReleasesInternal(sha1, fields);
+        return mkResponse(releases);
+    }
 
+    private List<Release> getReleasesInternal(String sha1) throws TException {
         User sw360User = restControllerHelper.getSw360UserFromAuthentication();
-        List<Release> sw360Releases = new ArrayList<>();
-
         if (sha1 != null && !sha1.isEmpty()) {
-            sw360Releases.add(searchReleaseBySha1(sha1, sw360User));
+            return Collections.singletonList(searchReleaseBySha1(sha1, sw360User));
         } else {
-            sw360Releases.addAll(releaseService.getReleasesForUser(sw360User));
+            return releaseService.getReleasesForUser(sw360User);
         }
+    }
 
-        List<Resource> releaseResources = new ArrayList<>();
-        for (Release sw360Release : sw360Releases) {
-            Release embeddedRelease = restControllerHelper.convertToEmbeddedRelease(sw360Release, fields);
-            Resource<Release> releaseResource = new Resource<>(embeddedRelease);
-            releaseResources.add(releaseResource);
-        }
-        Resources<Resource> resources = new Resources<>(releaseResources);
-
-        return new ResponseEntity<>(resources, HttpStatus.OK);
+    private List<Release> getReleasesInternal(String name, List<String> fields) throws TException {
+        return getReleasesInternal(name).stream()
+                .map(c -> restControllerHelper.convertToEmbeddedRelease(c, fields))
+                .collect(Collectors.toList());
     }
 
     private Release searchReleaseBySha1(String sha1, User sw360User) throws TException {
