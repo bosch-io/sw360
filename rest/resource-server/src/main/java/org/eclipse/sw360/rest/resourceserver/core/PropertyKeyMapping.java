@@ -12,7 +12,7 @@
 
 package org.eclipse.sw360.rest.resourceserver.core;
 
-class PropertyKeyMapping {
+public class PropertyKeyMapping {
 
     private static final String COMPONENT_VENDOR_KEY_THRIFT = "vendorNames";
     static final String COMPONENT_VENDOR_KEY_JSON = "vendors";
@@ -20,7 +20,7 @@ class PropertyKeyMapping {
     private static final String RELEASE_CPEID_KEY_THRIFT = "cpeid";
     static final String RELEASE_CPEID_KEY_JSON = "cpeId";
 
-    static String componentThriftKeyFromJSONKey(String jsonKey) {
+    public static String componentThriftKeyFromJSONKey(String jsonKey) {
         switch (jsonKey) {
             case COMPONENT_VENDOR_KEY_JSON:
                 return COMPONENT_VENDOR_KEY_THRIFT;
@@ -29,7 +29,7 @@ class PropertyKeyMapping {
         }
     }
 
-    static String releaseThriftKeyFromJSONKey(String jsonKey) {
+    public static String releaseThriftKeyFromJSONKey(String jsonKey) {
         switch (jsonKey) {
             case RELEASE_CPEID_KEY_JSON:
                 return RELEASE_CPEID_KEY_THRIFT;

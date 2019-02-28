@@ -22,12 +22,16 @@ import org.eclipse.sw360.datahandler.thrift.components.Release;
 import org.eclipse.sw360.datahandler.thrift.projects.Project;
 import org.eclipse.sw360.datahandler.thrift.users.User;
 import org.eclipse.sw360.rest.resourceserver.component.ComponentController;
+import org.eclipse.sw360.rest.resourceserver.component.Sw360ComponentHelper;
 import org.eclipse.sw360.rest.resourceserver.component.Sw360ComponentService;
 import org.eclipse.sw360.rest.resourceserver.core.HalResource;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
 import org.eclipse.sw360.rest.resourceserver.project.ProjectController;
+import org.eclipse.sw360.rest.resourceserver.project.Sw360ProjectHelper;
 import org.eclipse.sw360.rest.resourceserver.project.Sw360ProjectService;
+import org.eclipse.sw360.rest.resourceserver.release.Sw360ReleaseHelper;
 import org.eclipse.sw360.rest.resourceserver.release.Sw360ReleaseService;
+import org.eclipse.sw360.rest.resourceserver.user.Sw360UserHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.rest.webmvc.BasePathAwareController;
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
@@ -38,7 +42,6 @@ import org.springframework.hateoas.UriTemplate;
 import org.springframework.hateoas.mvc.ControllerLinkBuilder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -57,12 +60,21 @@ public class AttachmentController implements ResourceProcessor<RepositoryLinksRe
 
     @NonNull
     private final Sw360ProjectService projectService;
+    @NonNull
+    private final Sw360ProjectHelper projectHelper;
 
     @NonNull
     private final Sw360ReleaseService releaseService;
+    @NonNull
+    private final Sw360ReleaseHelper releaseHelper;
 
     @NonNull
     private final Sw360ComponentService componentService;
+    @NonNull
+    private final Sw360ComponentHelper componentHelper;
+
+    @NonNull
+    private final Sw360UserHelper userHelper;
 
     @NonNull
     private final RestControllerHelper restControllerHelper;
@@ -96,23 +108,23 @@ public class AttachmentController implements ResourceProcessor<RepositoryLinksRe
         switch (owner.getSetField()) {
             case PROJECT_ID:
                 Project sw360Project = projectService.getProjectForUserById(owner.getProjectId(), sw360User);
-                restControllerHelper.addEmbeddedProject(halAttachment, sw360Project);
+                projectHelper.addEmbedded(halAttachment, sw360Project);
                 downloadLink = linkTo(ProjectController.class).slash(sw360Project.getId() + "/attachment/" + sw360Project.getId() + "/" + attachmendId).withRel("downloadLink");
                 break;
             case COMPONENT_ID:
                 Component sw360Component = componentService.getComponentForUserById(owner.getComponentId(), sw360User);
-                restControllerHelper.addEmbeddedComponent(halAttachment, sw360Component);
+                componentHelper.addEmbedded(halAttachment, sw360Component);
                 downloadLink = linkTo(ComponentController.class).slash(sw360Component.getId() + "/attachment/" + sw360Component.getId() + "/" + attachmendId).withRel("downloadLink");
                 break;
             case RELEASE_ID:
                 Release sw360Release = releaseService.getReleaseForUserById(owner.getReleaseId(), sw360User);
-                restControllerHelper.addEmbeddedRelease(halAttachment, sw360Release);
+                releaseHelper.addEmbedded(halAttachment, sw360Release);
                 downloadLink = linkTo(ComponentController.class).slash("/release/" + sw360Release.getComponentId() + "/" + sw360Release.getId() + "/attachment/" + sw360Release.getId() + "/" + attachmendId).withRel("downloadLink");
                 break;
         }
 
         halAttachment.add(downloadLink);
-        restControllerHelper.addEmbeddedUser(halAttachment, sw360User, "createdBy");
+        userHelper.addEmbedded(halAttachment, sw360User, "createdBy");
         return halAttachment;
     }
 

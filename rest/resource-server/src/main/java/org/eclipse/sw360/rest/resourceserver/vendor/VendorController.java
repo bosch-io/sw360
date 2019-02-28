@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.sw360.datahandler.thrift.vendors.Vendor;
 import org.eclipse.sw360.rest.resourceserver.core.HalResource;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.rest.webmvc.BasePathAwareController;
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
@@ -43,9 +43,8 @@ public class VendorController implements ResourceProcessor<RepositoryLinksResour
 
     @NonNull
     private final Sw360VendorService vendorService;
-
     @NonNull
-    private final RestControllerHelper restControllerHelper;
+    private final Sw360VendorHelper vendorHelper;
 
     @RequestMapping(value = VENDORS_URL, method = RequestMethod.GET)
     public ResponseEntity<Resources<Resource<Vendor>>> getVendors() {
@@ -53,7 +52,7 @@ public class VendorController implements ResourceProcessor<RepositoryLinksResour
 
         List<Resource<Vendor>> vendorResources = new ArrayList<>();
         vendors.forEach(v -> {
-            Vendor embeddedVendor = restControllerHelper.convertToEmbeddedVendor(v);
+            Vendor embeddedVendor = vendorHelper.convertToEmbedded(v);
             vendorResources.add(new Resource<>(embeddedVendor));
         });
 

@@ -17,6 +17,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.apache.log4j.Logger;
 import org.apache.thrift.TException;
+import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentHelper;
 import org.eclipse.sw360.rest.resourceserver.core.*;
 import org.eclipse.sw360.datahandler.thrift.RequestStatus;
 import org.eclipse.sw360.datahandler.thrift.attachments.Attachment;
@@ -25,7 +26,12 @@ import org.eclipse.sw360.datahandler.thrift.components.Release;
 import org.eclipse.sw360.datahandler.thrift.users.User;
 import org.eclipse.sw360.datahandler.thrift.vendors.Vendor;
 import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentService;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.release.Sw360ReleaseHelper;
 import org.eclipse.sw360.rest.resourceserver.release.Sw360ReleaseService;
+import org.eclipse.sw360.rest.resourceserver.user.Sw360UserHelper;
+import org.eclipse.sw360.rest.resourceserver.user.Sw360UserService;
+import org.eclipse.sw360.rest.resourceserver.vendor.Sw360VendorHelper;
 import org.eclipse.sw360.rest.resourceserver.vendor.Sw360VendorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
@@ -54,22 +60,35 @@ import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 
 @BasePathAwareController
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class ComponentController extends PagingEnabledController<Component> {
+public class ComponentController extends PagingAndExternalIdEnabledController<Component> {
 
     public static final String COMPONENTS_URL = "/components";
     private static final Logger log = Logger.getLogger(ComponentController.class);
 
     @NonNull
     private final Sw360ComponentService componentService;
+    @NonNull
+    private final Sw360ComponentHelper componentHelper;
 
     @NonNull
     private final Sw360ReleaseService releaseService;
+    @NonNull
+    private final Sw360ReleaseHelper releaseHelper;
 
     @NonNull
     private final Sw360VendorService vendorService;
+    @NonNull
+    private final Sw360VendorHelper vendorHelper;
 
     @NonNull
     private final Sw360AttachmentService attachmentService;
+    @NonNull
+    private final Sw360AttachmentHelper attachmentHelper;
+
+    @NonNull
+    private final Sw360UserService userService;
+    @NonNull
+    private final Sw360UserHelper userHelper;
 
     @NonNull
     private final RestControllerHelper restControllerHelper;
@@ -83,7 +102,7 @@ public class ComponentController extends PagingEnabledController<Component> {
             HttpServletRequest request)
             throws TException {
         List<Component> components = getComponentsInternal(name, componentType, fields);
-        return mkResponse(components, requestContainsPaging(request) ? pageable : null);
+        return componentHelper.buildResponse(components, fields, requestContainsPaging(request) ? pageable : null);
     }
 
     private List<Component> getComponentsInternal(String name) throws TException {
@@ -103,7 +122,7 @@ public class ComponentController extends PagingEnabledController<Component> {
 
     private List<Component> getComponentsInternal(String name, String componentType, List<String> fields) throws TException {
         return getComponentsInternal(name, componentType).stream()
-                .map(c -> restControllerHelper.convertToEmbeddedComponent(c, fields))
+                .map(c -> componentHelper.convertToEmbedded(c, fields))
                 .collect(Collectors.toList());
     }
 
@@ -118,7 +137,8 @@ public class ComponentController extends PagingEnabledController<Component> {
 
     @RequestMapping(value = COMPONENTS_URL + "/searchByExternalIds", method = RequestMethod.GET)
     public ResponseEntity searchByExternalIds(@RequestParam MultiValueMap<String, String> externalIdsMultiMap) throws TException {
-        return restControllerHelper.searchByExternalIds(externalIdsMultiMap, componentService, null);
+        final Set<Component> components = componentService.searchByExternalIds(externalIdsMultiMap);
+        return componentHelper.buildResponse(components, Collections.singletonList("externalIds"));
     }
 
     @PreAuthorize("hasAuthority('WRITE')")
@@ -128,7 +148,7 @@ public class ComponentController extends PagingEnabledController<Component> {
             @RequestBody Component updateComponent) throws TException {
         User user = restControllerHelper.getSw360UserFromAuthentication();
         Component sw360Component = componentService.getComponentForUserById(id, user);
-        sw360Component = this.restControllerHelper.updateComponent(sw360Component, updateComponent);
+        sw360Component = componentHelper.updateComponent(sw360Component, updateComponent);
         componentService.updateComponent(sw360Component, user);
         HalResource<Component> userHalResource = createHalComponent(sw360Component, user);
         return new ResponseEntity<>(userHalResource, HttpStatus.OK);
@@ -187,8 +207,7 @@ public class ComponentController extends PagingEnabledController<Component> {
             @PathVariable("id") String id) throws TException {
         final User sw360User = restControllerHelper.getSw360UserFromAuthentication();
         final Component sw360Component = componentService.getComponentForUserById(id, sw360User);
-        final Resources<Resource<Attachment>> resources = attachmentService.getResourcesFromList(sw360Component.getAttachments());
-        return new ResponseEntity<>(resources, HttpStatus.OK);
+        return attachmentHelper.buildResponse(sw360Component.getAttachments());
     }
 
     @RequestMapping(value = COMPONENTS_URL + "/{componentId}/attachments", method = RequestMethod.POST, consumes = {"multipart/mixed", "multipart/form-data"})
@@ -235,36 +254,36 @@ public class ComponentController extends PagingEnabledController<Component> {
 
         if (sw360Component.getReleaseIds() != null) {
             Set<String> releases = sw360Component.getReleaseIds();
-            restControllerHelper.addEmbeddedReleases(halComponent, releases, releaseService, user);
+            releaseHelper.addEmbedded(halComponent, releases, releaseService, user);
         }
 
         if (sw360Component.getReleases() != null) {
             List<Release> releases = sw360Component.getReleases();
-            restControllerHelper.addEmbeddedReleases(halComponent, releases);
+            releaseHelper.addEmbedded(halComponent, releases);
         }
 
         if (sw360Component.getModerators() != null) {
             Set<String> moderators = sw360Component.getModerators();
-            restControllerHelper.addEmbeddedModerators(halComponent, moderators);
+            userHelper.addEmbeddedModerators(halComponent, moderators, userService);
         }
 
         if (sw360Component.getVendorNames() != null) {
             Set<String> vendors = sw360Component.getVendorNames();
-            restControllerHelper.addEmbeddedVendors(halComponent, vendors);
+            vendorHelper.addEmbedded(halComponent, vendors);
             sw360Component.setVendorNames(null);
         }
 
         if (sw360Component.getAttachments() != null) {
-            restControllerHelper.addEmbeddedAttachments(halComponent, sw360Component.getAttachments());
+            attachmentHelper.addEmbedded(halComponent, sw360Component.getAttachments());
         }
 
-        restControllerHelper.addEmbeddedUser(halComponent, user, "createdBy");
+        userHelper.addEmbedded(halComponent, user, "createdBy");
 
         return halComponent;
     }
 
     @Override
-    protected Comparator<Component> mkComparatorFromPropertyName(String name) {
-        return Comparator.comparing(c -> c.getFieldValue(Component._Fields.findByName(name)).toString());
+    protected Set<Component> searchByExternalIds(Map<String, Set<String>> externalIds, User user) {
+        return null;
     }
 }

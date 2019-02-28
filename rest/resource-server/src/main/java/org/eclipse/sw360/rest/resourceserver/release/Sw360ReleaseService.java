@@ -27,12 +27,13 @@ import org.eclipse.sw360.datahandler.thrift.RequestStatus;
 import org.eclipse.sw360.datahandler.thrift.components.ComponentService;
 import org.eclipse.sw360.datahandler.thrift.components.Release;
 import org.eclipse.sw360.datahandler.thrift.users.User;
-import org.eclipse.sw360.rest.resourceserver.core.AwareOfRestServices;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestDatastructureHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MultiValueMap;
 
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,7 @@ import java.util.Set;
 @Service
 @Slf4j
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class Sw360ReleaseService implements AwareOfRestServices<Release> {
+public class Sw360ReleaseService {
     @Value("${sw360.thrift-server-url:http://localhost:8080}")
     private String thriftServerUrl;
 
@@ -59,15 +60,13 @@ public class Sw360ReleaseService implements AwareOfRestServices<Release> {
         return sw360ComponentClient.getReleaseById(releaseId, sw360User);
     }
 
-    @Override
-    public Set<Release> searchByExternalIds(Map<String, Set<String>> externalIds, User user) throws TException {
-        ComponentService.Iface sw360ComponentClient = getThriftComponentClient();
-        return sw360ComponentClient.searchReleasesByExternalIds(externalIds);
+    public Set<Release> searchByExternalIds(MultiValueMap<String, String> externalIdsMultiMap) throws TException {
+        return searchByExternalIds(RestDatastructureHelper.getExternalIdsFromMultiMap(externalIdsMultiMap));
     }
 
-    @Override
-    public Release convertToEmbeddedWithExternalIds(Release sw360Object) {
-        return rch.convertToEmbeddedRelease(sw360Object).setExternalIds(sw360Object.getExternalIds());
+    public Set<Release> searchByExternalIds(Map<String, Set<String>> externalIds) throws TException {
+        ComponentService.Iface sw360ComponentClient = getThriftComponentClient();
+        return sw360ComponentClient.searchReleasesByExternalIds(externalIds);
     }
 
     public Release createRelease(Release release, User sw360User) throws TException {

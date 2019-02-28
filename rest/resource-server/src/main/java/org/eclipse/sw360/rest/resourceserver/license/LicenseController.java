@@ -18,8 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TException;
 import org.eclipse.sw360.datahandler.thrift.licenses.License;
 import org.eclipse.sw360.datahandler.thrift.users.User;
+import org.eclipse.sw360.rest.resourceserver.core.BasicController;
 import org.eclipse.sw360.rest.resourceserver.core.HalResource;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.rest.webmvc.BasePathAwareController;
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
@@ -29,7 +30,6 @@ import org.springframework.hateoas.Resources;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,7 +38,6 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
@@ -46,11 +45,13 @@ import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 @BasePathAwareController
 @Slf4j
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class LicenseController implements ResourceProcessor<RepositoryLinksResource> {
+public class LicenseController extends BasicController<License> implements ResourceProcessor<RepositoryLinksResource> {
     public static final String LICENSES_URL = "/licenses";
 
     @NonNull
     private final Sw360LicenseService licenseService;
+    @NonNull
+    private final Sw360LicenseHelper licenseHelper;
 
     @NonNull
     private final RestControllerHelper restControllerHelper;
@@ -58,16 +59,7 @@ public class LicenseController implements ResourceProcessor<RepositoryLinksResou
     @RequestMapping(value = LICENSES_URL, method = RequestMethod.GET)
     public ResponseEntity<Resources<Resource<License>>> getLicenses() throws TException {
         List<License> sw360Licenses = licenseService.getLicenses();
-
-        List<Resource<License>> licenseResources = new ArrayList<>();
-        for (License sw360License : sw360Licenses) {
-            License embeddedLicense = restControllerHelper.convertToEmbeddedLicense(sw360License);
-            Resource<License> licenseResource = new Resource<>(embeddedLicense);
-            licenseResources.add(licenseResource);
-        }
-
-        Resources<Resource<License>> resources = new Resources<>(licenseResources);
-        return new ResponseEntity<>(resources, HttpStatus.OK);
+        return licenseHelper.buildResponse(sw360Licenses);
     }
 
     @RequestMapping(value = LICENSES_URL + "/{id:.+}", method = RequestMethod.GET)
@@ -81,7 +73,7 @@ public class LicenseController implements ResourceProcessor<RepositoryLinksResou
     @PreAuthorize("hasAuthority('WRITE')")
     @RequestMapping(value = LICENSES_URL, method = RequestMethod.POST)
     public ResponseEntity<Resource<License>> createLicense(
-            @RequestBody License license) throws URISyntaxException, TException {
+            @RequestBody License license) throws TException {
         User sw360User = restControllerHelper.getSw360UserFromAuthentication();
         license = licenseService.createLicense(license, sw360User);
         HalResource<License> halResource = createHalLicense(license);

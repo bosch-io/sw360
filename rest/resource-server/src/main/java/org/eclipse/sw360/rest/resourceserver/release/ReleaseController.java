@@ -15,7 +15,6 @@ package org.eclipse.sw360.rest.resourceserver.release;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.log4j.Logger;
 import org.apache.thrift.TException;
 import org.eclipse.sw360.datahandler.thrift.RequestStatus;
 import org.eclipse.sw360.datahandler.thrift.attachments.Attachment;
@@ -23,16 +22,22 @@ import org.eclipse.sw360.datahandler.thrift.components.Release;
 import org.eclipse.sw360.datahandler.thrift.users.User;
 import org.eclipse.sw360.datahandler.thrift.vendors.Vendor;
 import org.eclipse.sw360.rest.resourceserver.attachment.AttachmentInfo;
+import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentHelper;
 import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentService;
 import org.eclipse.sw360.rest.resourceserver.component.ComponentController;
 import org.eclipse.sw360.rest.resourceserver.core.*;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.license.Sw360LicenseHelper;
+import org.eclipse.sw360.rest.resourceserver.license.Sw360LicenseService;
+import org.eclipse.sw360.rest.resourceserver.user.Sw360UserHelper;
+import org.eclipse.sw360.rest.resourceserver.user.Sw360UserService;
+import org.eclipse.sw360.rest.resourceserver.vendor.Sw360VendorHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.rest.webmvc.BasePathAwareController;
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
 import org.springframework.hateoas.Link;
 import org.springframework.hateoas.Resource;
-import org.springframework.hateoas.ResourceProcessor;
 import org.springframework.hateoas.Resources;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -56,14 +61,31 @@ import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 @BasePathAwareController
 @Slf4j
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class ReleaseController extends PagingEnabledController<Release> {
+public class ReleaseController extends BasicController<Release> {
     public static final String RELEASES_URL = "/releases";
 
     @NonNull
-    private Sw360ReleaseService releaseService;
+    private final Sw360ReleaseService releaseService;
+    @NonNull
+    private final Sw360ReleaseHelper releaseHelper;
 
     @NonNull
-    private Sw360AttachmentService attachmentService;
+    private final Sw360AttachmentService attachmentService;
+    @NonNull
+    private final Sw360AttachmentHelper attachmentHelper;
+
+    @NonNull
+    private final Sw360UserService userService;
+    @NonNull
+    private final Sw360UserHelper userHelper;
+
+    @NonNull
+    private final Sw360VendorHelper vendorHelper;
+
+    @NonNull
+    private final Sw360LicenseService licenseService;
+    @NonNull
+    private final Sw360LicenseHelper licenseHelper;
 
     @NonNull
     private final RestControllerHelper restControllerHelper;
@@ -76,7 +98,7 @@ public class ReleaseController extends PagingEnabledController<Release> {
             HttpServletRequest request)
             throws TException {
         List<Release> releases = getReleasesInternal(sha1, fields);
-        return mkResponse(releases, requestContainsPaging(request) ? pageable : null);
+        return releaseHelper.buildResponse(releases, fields, requestContainsPaging(request) ? pageable : null);
     }
 
     private List<Release> getReleasesInternal(String sha1) throws TException {
@@ -90,7 +112,7 @@ public class ReleaseController extends PagingEnabledController<Release> {
 
     private List<Release> getReleasesInternal(String name, List<String> fields) throws TException {
         return getReleasesInternal(name).stream()
-                .map(c -> restControllerHelper.convertToEmbeddedRelease(c, fields))
+                .map(c -> releaseHelper.convertToEmbedded(c, fields))
                 .collect(Collectors.toList());
     }
 
@@ -110,7 +132,8 @@ public class ReleaseController extends PagingEnabledController<Release> {
 
     @RequestMapping(value = RELEASES_URL + "/searchByExternalIds", method = RequestMethod.GET)
     public ResponseEntity searchByExternalIds(@RequestParam MultiValueMap<String, String> externalIdsMultiMap) throws TException {
-        return restControllerHelper.searchByExternalIds(externalIdsMultiMap, releaseService, null);
+        final Set<Release> releases = releaseService.searchByExternalIds(externalIdsMultiMap);
+        return releaseHelper.buildResponse(releases, Collections.singletonList("externalIds"));
     }
 
     @PreAuthorize("hasAuthority('WRITE')")
@@ -139,7 +162,7 @@ public class ReleaseController extends PagingEnabledController<Release> {
             @RequestBody Release updateRelease) throws TException {
         User user = restControllerHelper.getSw360UserFromAuthentication();
         Release sw360Release = releaseService.getReleaseForUserById(id, user);
-        sw360Release = this.restControllerHelper.updateRelease(sw360Release, updateRelease);
+        sw360Release = releaseHelper.updateRelease(sw360Release, updateRelease);
         releaseService.updateRelease(sw360Release, user);
         HalResource<Release> halRelease = createHalReleaseResource(sw360Release, true);
         return new ResponseEntity<>(halRelease, HttpStatus.OK);
@@ -191,8 +214,7 @@ public class ReleaseController extends PagingEnabledController<Release> {
             @PathVariable("id") String id) throws TException {
         final User sw360User = restControllerHelper.getSw360UserFromAuthentication();
         final Release sw360Release = releaseService.getReleaseForUserById(id, sw360User);
-        final Resources<Resource<Attachment>> resources = attachmentService.getResourcesFromList(sw360Release.getAttachments());
-        return new ResponseEntity<>(resources, HttpStatus.OK);
+        return attachmentHelper.buildResponse(sw360Release.getAttachments());
     }
 
     @RequestMapping(value = RELEASES_URL + "/{releaseId}/attachments", method = RequestMethod.POST, consumes = {"multipart/mixed", "multipart/form-data"})
@@ -244,30 +266,24 @@ public class ReleaseController extends PagingEnabledController<Release> {
         if (verbose) {
             if (release.getModerators() != null) {
                 Set<String> moderators = release.getModerators();
-                restControllerHelper.addEmbeddedModerators(halRelease, moderators);
+                userHelper.addEmbeddedModerators(halRelease, moderators, userService);
                 release.setModerators(null);
             }
             if (release.getAttachments() != null) {
                 Set<Attachment> attachments = release.getAttachments();
-                restControllerHelper.addEmbeddedAttachments(halRelease, attachments);
+                attachmentHelper.addEmbedded(halRelease, attachments);
                 release.setAttachments(null);
             }
             if (release.getVendor() != null) {
                 Vendor vendor = release.getVendor();
-                HalResource<Vendor> vendorHalResource = restControllerHelper.addEmbeddedVendor(vendor.getFullname());
-                halRelease.addEmbeddedResource("sw360:vendors", vendorHalResource);
+                vendorHelper.addEmbedded(halRelease, vendor);
                 release.setVendor(null);
             }
             if (release.getMainLicenseIds() != null) {
-                restControllerHelper.addEmbeddedLicenses(halRelease, release.getMainLicenseIds());
+                licenseHelper.addEmbedded(halRelease, release.getMainLicenseIds(), licenseService);
                 release.setMainLicenseIds(null);
             }
         }
         return halRelease;
-    }
-
-    @Override
-    protected Comparator<Release> mkComparatorFromPropertyName(String name) {
-        return Comparator.comparing(c -> c.getFieldValue(Release._Fields.findByName(name)).toString());
     }
 }

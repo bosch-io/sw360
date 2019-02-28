@@ -27,13 +27,12 @@ import org.eclipse.sw360.datahandler.common.Duration;
 import org.eclipse.sw360.datahandler.couchdb.AttachmentConnector;
 import org.eclipse.sw360.datahandler.thrift.attachments.*;
 import org.eclipse.sw360.datahandler.thrift.users.User;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.hateoas.Resource;
 import org.springframework.hateoas.Resources;
-import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileCopyUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -175,15 +174,5 @@ public class Sw360AttachmentService {
         THttpClient thriftClient = new THttpClient(thriftServerUrl + "/attachments/thrift");
         TProtocol protocol = new TCompactProtocol(thriftClient);
         return new AttachmentService.Client(protocol);
-    }
-
-    public Resources<Resource<Attachment>> getResourcesFromList(Set<Attachment> attachmentList) {
-        final List<Resource<Attachment>> attachmentResources = new ArrayList<>();
-        for (final Attachment attachment : attachmentList) {
-            final Attachment embeddedAttachment = restControllerHelper.convertToEmbeddedAttachment(attachment);
-            final Resource<Attachment> attachmentResource = new Resource<>(embeddedAttachment);
-            attachmentResources.add(attachmentResource);
-        }
-        return new Resources<>(attachmentResources);
     }
 }

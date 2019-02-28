@@ -13,7 +13,6 @@
 
 package org.eclipse.sw360.rest.resourceserver.component;
 
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TCompactProtocol;
@@ -26,12 +25,12 @@ import org.eclipse.sw360.datahandler.thrift.RequestStatus;
 import org.eclipse.sw360.datahandler.thrift.components.Component;
 import org.eclipse.sw360.datahandler.thrift.components.ComponentService;
 import org.eclipse.sw360.datahandler.thrift.users.User;
-import org.eclipse.sw360.rest.resourceserver.core.AwareOfRestServices;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestDatastructureHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MultiValueMap;
 
 import java.util.List;
 import java.util.Map;
@@ -39,12 +38,9 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class Sw360ComponentService implements AwareOfRestServices<Component> {
+public class Sw360ComponentService {
     @Value("${sw360.thrift-server-url:http://localhost:8080}")
     private String thriftServerUrl;
-
-    @NonNull
-    private final RestControllerHelper rch;
 
     public List<Component> getComponentsForUser(User sw360User) throws TException {
         ComponentService.Iface sw360ComponentClient = getThriftComponentClient();
@@ -56,15 +52,13 @@ public class Sw360ComponentService implements AwareOfRestServices<Component> {
         return sw360ComponentClient.getComponentById(componentId, sw360User);
     }
 
-    @Override
-    public Set<Component> searchByExternalIds(Map<String, Set<String>> externalIds, User user) throws TException {
-        ComponentService.Iface sw360ComponentClient = getThriftComponentClient();
-        return sw360ComponentClient.searchComponentsByExternalIds(externalIds);
+    public Set<Component> searchByExternalIds(MultiValueMap<String, String> externalIdsMultiMap) throws TException {
+        return searchByExternalIds(RestDatastructureHelper.getExternalIdsFromMultiMap(externalIdsMultiMap));
     }
 
-    @Override
-    public Component convertToEmbeddedWithExternalIds(Component sw360Object) {
-        return rch.convertToEmbeddedComponent(sw360Object).setExternalIds(sw360Object.getExternalIds());
+    public Set<Component> searchByExternalIds(Map<String, Set<String>> externalIds) throws TException {
+        ComponentService.Iface sw360ComponentClient = getThriftComponentClient();
+        return sw360ComponentClient.searchComponentsByExternalIds(externalIds);
     }
 
     public Component createComponent(Component component, User sw360User) throws TException {
@@ -103,4 +97,5 @@ public class Sw360ComponentService implements AwareOfRestServices<Component> {
         TProtocol protocol = new TCompactProtocol(thriftClient);
         return new ComponentService.Client(protocol);
     }
+
 }

@@ -33,19 +33,23 @@ import org.eclipse.sw360.datahandler.thrift.projects.Project;
 import org.eclipse.sw360.datahandler.thrift.projects.ProjectRelationship;
 import org.eclipse.sw360.datahandler.thrift.users.User;
 import org.eclipse.sw360.datahandler.thrift.vulnerabilities.VulnerabilityDTO;
+import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentHelper;
 import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentService;
 import org.eclipse.sw360.rest.resourceserver.core.BasicController;
 import org.eclipse.sw360.rest.resourceserver.core.HalResource;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.license.Sw360LicenseHelper;
 import org.eclipse.sw360.rest.resourceserver.license.Sw360LicenseService;
 import org.eclipse.sw360.rest.resourceserver.licenseinfo.Sw360LicenseInfoService;
+import org.eclipse.sw360.rest.resourceserver.release.Sw360ReleaseHelper;
 import org.eclipse.sw360.rest.resourceserver.release.Sw360ReleaseService;
+import org.eclipse.sw360.rest.resourceserver.user.Sw360UserHelper;
+import org.eclipse.sw360.rest.resourceserver.user.Sw360UserService;
 import org.eclipse.sw360.rest.resourceserver.vulnerability.Sw360VulnerabilityService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.rest.webmvc.BasePathAwareController;
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
 import org.springframework.hateoas.Resource;
-import org.springframework.hateoas.ResourceProcessor;
 import org.springframework.hateoas.Resources;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -75,21 +79,34 @@ public class ProjectController extends BasicController<Project> {
 
     @NonNull
     private final Sw360ProjectService projectService;
+    @NonNull
+    private final Sw360ProjectHelper projectHelper;
 
     @NonNull
     private final Sw360ReleaseService releaseService;
+    @NonNull
+    private final Sw360ReleaseHelper releaseHelper;
 
     @NonNull
     private final Sw360LicenseService licenseService;
+    @NonNull
+    private final Sw360LicenseHelper licenseHelper;
 
     @NonNull
     private final Sw360VulnerabilityService vulnerabilityService;
 
     @NonNull
     private final Sw360AttachmentService attachmentService;
+    @NonNull
+    private final Sw360AttachmentHelper attachmentHelper;
 
     @NonNull
     private final Sw360LicenseInfoService licenseInfoService;
+
+    @NonNull
+    private final Sw360UserService userService;
+    @NonNull
+    private final Sw360UserHelper userHelper;
 
     @NonNull
     private final RestControllerHelper restControllerHelper;
@@ -99,7 +116,7 @@ public class ProjectController extends BasicController<Project> {
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "type", required = false) String projectType) throws TException {
         List<Project> projects = getProjectsForUserInternal(name, projectType);
-        return mkResponse(projects);
+        return projectHelper.buildResponse(projects);
     }
 
     private List<Project> getProjectsForUserInternal(String name) throws TException {
@@ -186,7 +203,7 @@ public class ProjectController extends BasicController<Project> {
         final List<Resource<Release>> releaseResources = new ArrayList<>();
         for (final String releaseId : releaseIds) {
             final Release sw360Release = releaseService.getReleaseForUserById(releaseId, sw360User);
-            final Release embeddedRelease = restControllerHelper.convertToEmbeddedRelease(sw360Release);
+            final Release embeddedRelease = releaseHelper.convertToEmbedded(sw360Release);
             final Resource<Release> releaseResource = new Resource<>(embeddedRelease);
             releaseResources.add(releaseResource);
         }
@@ -206,7 +223,7 @@ public class ProjectController extends BasicController<Project> {
         final List<Resource<Release>> releaseResources = new ArrayList<>();
         for (final String releaseId : releaseIds) {
             final Release sw360Release = releaseService.getReleaseForUserById(releaseId, sw360User);
-            Release embeddedRelease = restControllerHelper.convertToEmbeddedRelease(sw360Release);
+            Release embeddedRelease = releaseHelper.convertToEmbedded(sw360Release);
             embeddedRelease.setEccInformation(sw360Release.getEccInformation());
             final Resource<Release> releaseResource = new Resource<>(embeddedRelease);
             releaseResources.add(releaseResource);
@@ -248,7 +265,7 @@ public class ProjectController extends BasicController<Project> {
         }
         for (final String licenseId : allLicenseIds) {
             final License sw360License = licenseService.getLicenseById(licenseId);
-            final License embeddedLicense = restControllerHelper.convertToEmbeddedLicense(sw360License);
+            final License embeddedLicense = licenseHelper.convertToEmbedded(sw360License);
             final Resource<License> licenseResource = new Resource<>(embeddedLicense);
             licenseResources.add(licenseResource);
         }
@@ -283,11 +300,11 @@ public class ProjectController extends BasicController<Project> {
 
         final String projectName = sw360Project.getName();
         final String projectVersion = sw360Project.getVersion();
-	final String timestamp = SW360Utils.getCreatedOnTime().replaceAll("\\s", "_").replace(":", "_");
-	final OutputFormatInfo outputFormatInfo = licenseInfoService.getOutputFormatInfoForGeneratorClass(generatorClassName);
-	final String filename = String.format("LicenseInfo-%s%s-%s.%s", projectName,
-			StringUtils.isBlank(projectVersion) ? "" : "-" + projectVersion, timestamp,
-			outputFormatInfo.getFileExtension());
+        final String timestamp = SW360Utils.getCreatedOnTime().replaceAll("\\s", "_").replace(":", "_");
+        final OutputFormatInfo outputFormatInfo = licenseInfoService.getOutputFormatInfoForGeneratorClass(generatorClassName);
+        final String filename = String.format("LicenseInfo-%s%s-%s.%s", projectName,
+                StringUtils.isBlank(projectVersion) ? "" : "-" + projectVersion, timestamp,
+                outputFormatInfo.getFileExtension());
 
         final LicenseInfoFile licenseInfoFile = licenseInfoService.getLicenseInfoFile(sw360Project, sw360User, generatorClassName, selectedReleaseAndAttachmentIds, excludedLicenses);
         byte[] byteContent = licenseInfoFile.bufferForGeneratedOutput().array();
@@ -301,8 +318,7 @@ public class ProjectController extends BasicController<Project> {
             @PathVariable("id") String id) throws TException {
         final User sw360User = restControllerHelper.getSw360UserFromAuthentication();
         final Project sw360Project = projectService.getProjectForUserById(id, sw360User);
-        final Resources<Resource<Attachment>> resources = attachmentService.getResourcesFromList(sw360Project.getAttachments());
-        return new ResponseEntity<>(resources, HttpStatus.OK);
+        return attachmentHelper.buildResponse(sw360Project.getAttachments());
     }
 
     @RequestMapping(value = PROJECTS_URL + "/{projectId}/attachments/{attachmentId}", method = RequestMethod.GET, produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
@@ -366,7 +382,8 @@ public class ProjectController extends BasicController<Project> {
     @RequestMapping(value = PROJECTS_URL + "/searchByExternalIds", method = RequestMethod.GET)
     public ResponseEntity searchByExternalIds(@RequestParam MultiValueMap<String, String> externalIdsMultiMap) throws TException {
         final User sw360User = restControllerHelper.getSw360UserFromAuthentication();
-        return restControllerHelper.searchByExternalIds(externalIdsMultiMap, projectService, sw360User);
+        final Set<Project> projects = projectService.searchByExternalIds(externalIdsMultiMap, sw360User);
+        return projectHelper.buildResponse(projects, Collections.singletonList("externalIds"));
     }
 
     @Override
@@ -377,25 +394,25 @@ public class ProjectController extends BasicController<Project> {
 
     private HalResource<Project> createHalProject(Project sw360Project, User sw360User) throws TException {
         HalResource<Project> halProject = new HalResource<>(sw360Project);
-        restControllerHelper.addEmbeddedUser(halProject, sw360User, "createdBy");
+        userHelper.addEmbedded(halProject, sw360User, "createdBy");
 
         Map<String, ProjectReleaseRelationship> releaseIdToUsage = sw360Project.getReleaseIdToUsage();
         if (releaseIdToUsage != null) {
-            restControllerHelper.addEmbeddedReleases(halProject, releaseIdToUsage.keySet(), releaseService, sw360User);
+            releaseHelper.addEmbedded(halProject, releaseIdToUsage.keySet(), releaseService, sw360User);
         }
 
         Map<String, ProjectRelationship> linkedProjects = sw360Project.getLinkedProjects();
         if (linkedProjects != null) {
-            restControllerHelper.addEmbeddedProject(halProject, linkedProjects.keySet(), projectService, sw360User);
+            projectHelper.addEmbedded(halProject, linkedProjects.keySet(), projectService, sw360User);
         }
 
         if (sw360Project.getModerators() != null) {
             Set<String> moderators = sw360Project.getModerators();
-            restControllerHelper.addEmbeddedModerators(halProject, moderators);
+            userHelper.addEmbeddedModerators(halProject, moderators, userService);
         }
 
         if (sw360Project.getAttachments() != null) {
-            restControllerHelper.addEmbeddedAttachments(halProject, sw360Project.getAttachments());
+            attachmentHelper.addEmbedded(halProject, sw360Project.getAttachments());
         }
 
         return halProject;

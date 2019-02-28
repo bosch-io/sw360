@@ -13,7 +13,6 @@ package org.eclipse.sw360.rest.resourceserver;
 
 import org.eclipse.sw360.rest.common.Sw360CORSFilter;
 import org.eclipse.sw360.datahandler.common.CommonUtils;
-import org.eclipse.sw360.rest.resourceserver.core.RestPaginationHelper;
 import org.eclipse.sw360.rest.resourceserver.security.ApiTokenAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
@@ -45,6 +44,8 @@ public class Sw360ResourceServer extends SpringBootServletInitializer {
     public static final String API_TOKEN_MAX_VALIDITY_READ_IN_DAYS;
     public static final String API_TOKEN_MAX_VALIDITY_WRITE_IN_DAYS;
 
+    private static final String PAGINATION_PARAM_PAGE_ENTRIES = "page_size";
+
     static {
         Properties props = CommonUtils.loadProperties(Sw360ResourceServer.class, PROPERTIES_FILE_PATH);
         API_TOKEN_MAX_VALIDITY_READ_IN_DAYS = props.getProperty("rest.apitoken.read.validity.days", "90");
@@ -67,7 +68,7 @@ public class Sw360ResourceServer extends SpringBootServletInitializer {
         return new RepositoryRestConfigurerAdapter() {
             @Override
             public void configureRepositoryRestConfiguration(RepositoryRestConfiguration config) {
-                config.setLimitParamName(RestPaginationHelper.PAGINATION_PARAM_PAGE_ENTRIES);
+                config.setLimitParamName(PAGINATION_PARAM_PAGE_ENTRIES);
             }
         };
     }

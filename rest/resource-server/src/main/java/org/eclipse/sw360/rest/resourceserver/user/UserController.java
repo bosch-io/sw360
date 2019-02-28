@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.sw360.datahandler.thrift.users.User;
 import org.eclipse.sw360.rest.resourceserver.core.HalResource;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.helper.RestControllerHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.rest.webmvc.BasePathAwareController;
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
@@ -47,6 +47,8 @@ public class UserController implements ResourceProcessor<RepositoryLinksResource
 
     @NonNull
     private final Sw360UserService userService;
+    @NonNull
+    private final Sw360UserHelper userHelper;
 
     @NonNull
     private final RestControllerHelper restControllerHelper;
@@ -57,7 +59,7 @@ public class UserController implements ResourceProcessor<RepositoryLinksResource
 
         List<Resource<User>> userResources = new ArrayList<>();
         for (User sw360User : sw360Users) {
-            User embeddedUser = restControllerHelper.convertToEmbeddedUser(sw360User);
+            User embeddedUser = userHelper.convertToEmbedded(sw360User);
             Resource<User> userResource = new Resource<>(embeddedUser);
             userResources.add(userResource);
         }
@@ -100,7 +102,6 @@ public class UserController implements ResourceProcessor<RepositoryLinksResource
     }
 
     private HalResource<User> createHalUser(User sw360User) {
-        HalResource<User> halResource = new HalResource<>(sw360User);
-        return halResource;
+        return new HalResource<>(sw360User);
     }
 }
