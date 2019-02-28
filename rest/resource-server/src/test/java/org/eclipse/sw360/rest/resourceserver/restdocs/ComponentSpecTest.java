@@ -205,6 +205,7 @@ public class ComponentSpecTest extends TestRestDocsSpecBase {
                                 parameterWithName("sort").description("Defines order of the components")
                         ),
                         links(
+                                linkWithRel("self").description("self link describing the request"),
                                 linkWithRel("curies").description("Curies are used for online documentation"),
                                 linkWithRel("first").description("Link to first page"),
                                 linkWithRel("last").description("Link to last page")
@@ -231,6 +232,7 @@ public class ComponentSpecTest extends TestRestDocsSpecBase {
                 .andExpect(status().isOk())
                 .andDo(this.documentationHandler.document(
                         links(
+                                linkWithRel("self").description("self link describing the request"),
                                 linkWithRel("curies").description("Curies are used for online documentation")
                         ),
                         responseFields(
@@ -260,6 +262,7 @@ public class ComponentSpecTest extends TestRestDocsSpecBase {
                                 parameterWithName("sort").description("Defines order of the components")
                         ),
                         links(
+                                linkWithRel("self").description("self link describing the request"),
                                 linkWithRel("curies").description("Curies are used for online documentation"),
                                 linkWithRel("first").description("Link to first page"),
                                 linkWithRel("last").description("Link to last page")
@@ -360,6 +363,7 @@ public class ComponentSpecTest extends TestRestDocsSpecBase {
                                 parameterWithName("sort").description("Defines order of the components")
                         ),
                         links(
+                                linkWithRel("self").description("self link describing the request"),
                                 linkWithRel("curies").description("Curies are used for online documentation"),
                                 linkWithRel("first").description("Link to first page"),
                                 linkWithRel("last").description("Link to last page")
@@ -395,6 +399,7 @@ public class ComponentSpecTest extends TestRestDocsSpecBase {
                                 parameterWithName("sort").description("Defines order of the components")
                         ),
                         links(
+                                linkWithRel("self").description("self link describing the request"),
                                 linkWithRel("curies").description("Curies are used for online documentation"),
                                 linkWithRel("first").description("Link to first page"),
                                 linkWithRel("last").description("Link to last page")

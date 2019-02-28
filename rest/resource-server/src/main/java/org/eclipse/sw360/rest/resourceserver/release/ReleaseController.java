@@ -25,11 +25,9 @@ import org.eclipse.sw360.datahandler.thrift.vendors.Vendor;
 import org.eclipse.sw360.rest.resourceserver.attachment.AttachmentInfo;
 import org.eclipse.sw360.rest.resourceserver.attachment.Sw360AttachmentService;
 import org.eclipse.sw360.rest.resourceserver.component.ComponentController;
-import org.eclipse.sw360.rest.resourceserver.core.BasicController;
-import org.eclipse.sw360.rest.resourceserver.core.HalResource;
-import org.eclipse.sw360.rest.resourceserver.core.MultiStatus;
-import org.eclipse.sw360.rest.resourceserver.core.RestControllerHelper;
+import org.eclipse.sw360.rest.resourceserver.core.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.rest.webmvc.BasePathAwareController;
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
 import org.springframework.hateoas.Link;
@@ -45,6 +43,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
@@ -57,7 +56,7 @@ import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
 @BasePathAwareController
 @Slf4j
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class ReleaseController extends BasicController<Release> {
+public class ReleaseController extends PagingEnabledController<Release> {
     public static final String RELEASES_URL = "/releases";
 
     @NonNull
@@ -71,11 +70,13 @@ public class ReleaseController extends BasicController<Release> {
 
     @RequestMapping(value = RELEASES_URL, method = RequestMethod.GET)
     public ResponseEntity<Resources<Resource<Release>>> getReleasesForUser(
+            Pageable pageable,
             @RequestParam(value = "sha1", required = false) String sha1,
-            @RequestParam(value = "fields", required = false) List<String> fields)
+            @RequestParam(value = "fields", required = false) List<String> fields,
+            HttpServletRequest request)
             throws TException {
         List<Release> releases = getReleasesInternal(sha1, fields);
-        return mkResponse(releases);
+        return mkResponse(releases, requestContainsPaging(request) ? pageable : null);
     }
 
     private List<Release> getReleasesInternal(String sha1) throws TException {
@@ -263,5 +264,10 @@ public class ReleaseController extends BasicController<Release> {
             }
         }
         return halRelease;
+    }
+
+    @Override
+    protected Comparator<Release> mkComparatorFromPropertyName(String name) {
+        return Comparator.comparing(c -> c.getFieldValue(Release._Fields.findByName(name)).toString());
     }
 }

@@ -12,12 +12,10 @@
 package org.eclipse.sw360.rest.resourceserver.core;
 
 import org.springframework.data.rest.webmvc.RepositoryLinksResource;
-import org.springframework.hateoas.Resource;
-import org.springframework.hateoas.ResourceProcessor;
-import org.springframework.hateoas.ResourceSupport;
-import org.springframework.hateoas.Resources;
+import org.springframework.hateoas.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,6 +25,7 @@ public abstract class BasicController<T> implements ResourceProcessor<Repository
         Resources<Resource<T>> resources = new Resources<>(objects.stream()
                 .map(r -> new Resource<>(r))
                 .collect(Collectors.toList()));
+        resources.add(new Link(ServletUriComponentsBuilder.fromCurrentRequest().build().toString()));
         return new ResponseEntity<>(resources, HttpStatus.OK);
     }
 }

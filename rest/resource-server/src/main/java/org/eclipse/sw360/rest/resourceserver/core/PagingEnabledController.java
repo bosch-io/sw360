@@ -13,6 +13,7 @@ package org.eclipse.sw360.rest.resourceserver.core;
 
 import org.eclipse.sw360.rest.resourceserver.core.resourcelist.PaginationResult;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.HateoasPageableHandlerMethodArgumentResolver;
 import org.springframework.data.web.HateoasSortHandlerMethodArgumentResolver;
 import org.springframework.data.web.PagedResourcesAssembler;
@@ -22,14 +23,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public abstract class PagingEnabledController<T> extends BasicController<T> {
-    private static final String PAGINATION_KEY_FIRST = "first";
-    private static final String PAGINATION_KEY_PREVIOUS = "previous";
-    private static final String PAGINATION_KEY_NEXT = "next";
-    private static final String PAGINATION_KEY_LAST = "last";
     private static final String PAGINATION_PARAM_PAGE = "page";
     private static final String PAGINATION_PARAM_PAGE_ENTRIES = "page_entries";
 
@@ -43,17 +42,52 @@ public abstract class PagingEnabledController<T> extends BasicController<T> {
             return mkResponse(objects);
         }
 
+        List<T> pagedObjects = applyPaging(objects, pageable);
+
         final HateoasSortHandlerMethodArgumentResolver sortResolver = new HateoasSortHandlerMethodArgumentResolver();
         final HateoasPageableHandlerMethodArgumentResolver argumentResolver = new HateoasPageableHandlerMethodArgumentResolver(sortResolver);
 
         final PagedResourcesAssembler<T> componentPagedResourcesAssembler = new PagedResourcesAssembler<>(argumentResolver,
                 ServletUriComponentsBuilder.fromCurrentRequest().build()); // TODO
+        componentPagedResourcesAssembler.setForceFirstAndLastRels(true);
 
-        final PaginationResult<T> paginationResult = new PaginationResult<>(objects, objects.size(), pageable);
+        final PaginationResult<T> paginationResult = new PaginationResult<>(pagedObjects, pagedObjects.size(), pageable);
         final PagedResources<Resource<T>> resources = componentPagedResourcesAssembler.toResource(paginationResult,
                 new Link(ServletUriComponentsBuilder.fromCurrentRequest().build().toString())); // TODO
 
         return new ResponseEntity<>(resources, HttpStatus.OK);
+    }
+
+    protected abstract Comparator<T> mkComparatorFromPropertyName(String name);
+
+    private Comparator<T> mkComparatorFromOrder(Sort.Order order) {
+        final Comparator<T> tComparator = mkComparatorFromPropertyName(order.getProperty());
+        if(order.isAscending()) {
+            return tComparator;
+        } else {
+            return tComparator.reversed();
+        }
+    }
+
+    private Comparator<T> mkComparatorFromOrders(Stream<Sort.Order> orderings) {
+        return orderings.map(this::mkComparatorFromOrder)
+                .reduce((t1,t2) -> 0, Comparator::thenComparing);
+    }
+
+    private Comparator<T> mkComparatorFromSort(Sort sort) {
+        return mkComparatorFromOrders(StreamSupport.stream(Spliterators.spliteratorUnknownSize(sort.iterator(), Spliterator.ORDERED), false));
+    }
+
+    private Stream<T> applySorting(List<T> objects, Sort sort) {
+        return objects.stream()
+                .sorted(mkComparatorFromSort(sort));
+    }
+
+    private List<T> applyPaging(List<T> objects, Pageable pageable) {
+        return applySorting(objects, pageable.getSort())
+                .skip(pageable.getPageNumber() * pageable.getPageSize())
+                .limit(pageable.getPageSize())
+                .collect(Collectors.toList());
     }
 
 /*    protected Comparator<T> generateComparator(Class<T> type) throws ResourceClassNotFoundException {

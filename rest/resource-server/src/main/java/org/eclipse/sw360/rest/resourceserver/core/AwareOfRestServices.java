@@ -21,5 +21,4 @@ public interface AwareOfRestServices<T> {
     Set<T> searchByExternalIds(Map<String, Set<String>> externalIds, User user) throws TException;
 
     T convertToEmbeddedWithExternalIds(T sw360Object);
-
 }

@@ -47,10 +47,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.springframework.hateoas.mvc.ControllerLinkBuilder.linkTo;
@@ -264,5 +261,10 @@ public class ComponentController extends PagingEnabledController<Component> {
         restControllerHelper.addEmbeddedUser(halComponent, user, "createdBy");
 
         return halComponent;
+    }
+
+    @Override
+    protected Comparator<Component> mkComparatorFromPropertyName(String name) {
+        return Comparator.comparing(c -> c.getFieldValue(Component._Fields.findByName(name)).toString());
     }
 }
