@@ -97,6 +97,7 @@ public class RestControllerHelper<T> {
             String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             return userService.getUserByEmailOrExternalId(userId);
         } catch (RuntimeException e) {
+            LOGGER.info("Authentication failed due to " + e.getMessage(), e);
             throw new AuthenticationServiceException("Could not load user from authentication.");
         }
     }
